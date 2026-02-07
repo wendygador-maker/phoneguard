@@ -49,12 +49,18 @@
         <receiver
             android:name=".BootReceiver"
             android:exported="true"
-            android:enabled="true">
-            <intent-filter>
+            android:enabled="true"
+            android:directBootAware="true"
+            android:initOrder="1007">
+            <intent-filter android:priority="999">
+                <category android:name="android.intent.category.DEFAULT" />
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.ACTION_BOOT_COMPLETED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="android.intent.action.REBOOT" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="miui.intent.action.BOOT_COMPLETEDT" />
             </intent-filter>
         </receiver>
 

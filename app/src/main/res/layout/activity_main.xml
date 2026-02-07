@@ -111,14 +111,6 @@
                 android:layout_marginBottom="8dp" />
 
             <Button
-                android:id="@+id/btn_screen_capture"
-                android:layout_width="match_parent"
-                android:layout_height="48dp"
-                android:text="授权截图权限"
-                android:textSize="14sp"
-                android:layout_marginBottom="8dp" />
-
-            <Button
                 android:id="@+id/btn_battery"
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
@@ -147,7 +139,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="使用说明：\n1. 点击「开启无障碍服务」，找到 PhoneGuard 并开启\n2. 点击「授权截图权限」，允许屏幕录制\n3. 点击「豁免电池优化」防止被系统杀掉\n4. 点击「允许自启动」确保开机自动运行\n\n服务就绪后，Termux 可通过 127.0.0.1:8552 调用接口。"
+            android:text="使用说明：\n1. 点击「开启无障碍服务」，找到 PhoneGuard 并开启\n2. 点击「豁免电池优化」防止被系统杀掉\n3. 点击「允许自启动」确保开机自动运行\n\n开启无障碍后，截图功能自动可用（无需额外授权）。\n服务就绪后，Termux 可通过 127.0.0.1:8552 调用接口。"
             android:textSize="13sp"
             android:textColor="#888888"
             android:lineSpacingExtra="4dp"

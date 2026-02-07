@@ -3,21 +3,25 @@ package com.phoneguard;
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.GestureDescription;
 import android.content.Intent;
+import android.graphics.Bitmap;
 import android.graphics.Path;
 import android.graphics.Rect;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import android.view.Display;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class GuardAccessibilityService extends AccessibilityService {
 
@@ -165,6 +169,70 @@ public class GuardAccessibilityService extends AccessibilityService {
         }
         root.recycle();
         return false;
+    }
+
+    // --- Take screenshot using Accessibility API (Android 11+) ---
+    public byte[] takeScreenshot(int quality, float scale) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null;
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<Bitmap> bitmapRef = new AtomicReference<>(null);
+
+        takeScreenshot(Display.DEFAULT_DISPLAY,
+                getMainExecutor(),
+                new TakeScreenshotCallback() {
+                    @Override
+                    public void onSuccess(ScreenshotResult result) {
+                        try {
+                            Bitmap bmp = Bitmap.wrapHardwareBuffer(
+                                    result.getHardwareBuffer(), result.getColorSpace());
+                            if (bmp != null) {
+                                // Convert hardware bitmap to software bitmap for compression
+                                bitmapRef.set(bmp.copy(Bitmap.Config.ARGB_8888, false));
+                                bmp.recycle();
+                            }
+                            result.getHardwareBuffer().close();
+                        } catch (Exception e) {
+                            Log.e(TAG, "Screenshot onSuccess error", e);
+                        }
+                        latch.countDown();
+                    }
+
+                    @Override
+                    public void onFailure(int errorCode) {
+                        Log.e(TAG, "Screenshot failed with error code: " + errorCode);
+                        latch.countDown();
+                    }
+                });
+
+        try {
+            latch.await(5, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            return null;
+        }
+
+        Bitmap bitmap = bitmapRef.get();
+        if (bitmap == null) return null;
+
+        try {
+            // Scale if needed
+            if (scale > 0 && scale < 1.0f) {
+                int sw = (int) (bitmap.getWidth() * scale);
+                int sh = (int) (bitmap.getHeight() * scale);
+                Bitmap scaled = Bitmap.createScaledBitmap(bitmap, sw, sh, true);
+                bitmap.recycle();
+                bitmap = scaled;
+            }
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            bitmap.compress(Bitmap.CompressFormat.PNG, quality > 0 ? quality : 80, baos);
+            bitmap.recycle();
+            return baos.toByteArray();
+        } catch (Exception e) {
+            Log.e(TAG, "Screenshot compress failed", e);
+            bitmap.recycle();
+            return null;
+        }
     }
 
     // --- Get UI node tree ---

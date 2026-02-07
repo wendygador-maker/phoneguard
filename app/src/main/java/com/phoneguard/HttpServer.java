@@ -96,7 +96,7 @@ public class HttpServer extends NanoHTTPD {
             JSONObject json = new JSONObject();
             json.put("ok", true);
             json.put("accessibility", GuardAccessibilityService.isRunning());
-            json.put("screenshot", ScreenCapture.getInstance().isReady());
+            json.put("screenshot", GuardAccessibilityService.isRunning() && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R);
             return newFixedLengthResponse(Response.Status.OK,
                     "application/json", json.toString());
         } catch (Exception e) {
@@ -106,14 +106,17 @@ public class HttpServer extends NanoHTTPD {
     }
 
     private Response handleScreenshot(IHTTPSession session) {
+        GuardAccessibilityService svc = GuardAccessibilityService.getInstance();
+        if (svc == null) return serviceUnavailable();
+
         Map<String, String> params = session.getParms();
         int quality = parseInt(params.get("quality"), 80);
         float scale = parseFloat(params.get("scale"), 1.0f);
 
-        byte[] png = ScreenCapture.getInstance().takeScreenshot(quality, scale);
+        byte[] png = svc.takeScreenshot(quality, scale);
         if (png == null) {
             return newFixedLengthResponse(Response.Status.INTERNAL_ERROR,
-                    "application/json", "{\"error\":\"Screenshot failed. Is screen capture permission granted?\"}");
+                    "application/json", "{\"error\":\"Screenshot failed. Requires Android 11+.\"}");
         }
 
         return newFixedLengthResponse(Response.Status.OK,

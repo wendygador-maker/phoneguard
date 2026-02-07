@@ -5,20 +5,16 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
-import android.media.projection.MediaProjectionManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.PowerManager;
 import android.provider.Settings;
-import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
 public class MainActivity extends Activity {
-
-    private static final int REQUEST_MEDIA_PROJECTION = 1001;
 
     private TextView tvAccessibility;
     private TextView tvScreenCapture;
@@ -36,13 +32,11 @@ public class MainActivity extends Activity {
         tvToken = findViewById(R.id.tv_token);
 
         Button btnAccessibility = findViewById(R.id.btn_accessibility);
-        Button btnScreenCapture = findViewById(R.id.btn_screen_capture);
         Button btnBattery = findViewById(R.id.btn_battery);
         Button btnAutoStart = findViewById(R.id.btn_auto_start);
         Button btnCopyToken = findViewById(R.id.btn_copy_token);
 
         btnAccessibility.setOnClickListener(v -> openAccessibilitySettings());
-        btnScreenCapture.setOnClickListener(v -> requestScreenCapture());
         btnBattery.setOnClickListener(v -> requestBatteryOptimization());
         btnAutoStart.setOnClickListener(v -> openAutoStartSettings());
         btnCopyToken.setOnClickListener(v -> copyToken());
@@ -60,11 +54,11 @@ public class MainActivity extends Activity {
 
     private void updateStatus() {
         boolean accOk = GuardAccessibilityService.isRunning();
-        boolean capOk = ScreenCapture.getInstance().isReady();
+        boolean capOk = accOk && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R;
         boolean httpOk = accOk; // HTTP server starts with accessibility service
 
         tvAccessibility.setText(accOk ? "✅ 无障碍服务已开启" : "❌ 无障碍服务未开启");
-        tvScreenCapture.setText(capOk ? "✅ 截图权限已授予" : "❌ 截图权限未授予");
+        tvScreenCapture.setText(capOk ? "✅ 截图功能可用 (Android 11+)" : "❌ 截图功能不可用");
         tvHttpServer.setText(httpOk ? "✅ HTTP 服务运行中 (127.0.0.1:8552)" : "❌ HTTP 服务未运行");
 
         String token = TokenManager.getToken(this);
@@ -75,12 +69,6 @@ public class MainActivity extends Activity {
         Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
         startActivity(intent);
         Toast.makeText(this, "请找到 PhoneGuard 并开启", Toast.LENGTH_LONG).show();
-    }
-
-    private void requestScreenCapture() {
-        MediaProjectionManager mpm = (MediaProjectionManager)
-                getSystemService(Context.MEDIA_PROJECTION_SERVICE);
-        startActivityForResult(mpm.createScreenCaptureIntent(), REQUEST_MEDIA_PROJECTION);
     }
 
     private void requestBatteryOptimization() {
@@ -134,19 +122,5 @@ public class MainActivity extends Activity {
         ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
         cm.setPrimaryClip(ClipData.newPlainText("PhoneGuard Token", token));
         Toast.makeText(this, "Token 已复制", Toast.LENGTH_SHORT).show();
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_MEDIA_PROJECTION) {
-            if (resultCode == RESULT_OK && data != null) {
-                ScreenCapture.getInstance().init(this, resultCode, data);
-                Toast.makeText(this, "截图权限已授予", Toast.LENGTH_SHORT).show();
-            } else {
-                Toast.makeText(this, "截图权限被拒绝", Toast.LENGTH_SHORT).show();
-            }
-            updateStatus();
-        }
     }
 }

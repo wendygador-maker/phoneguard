@@ -4,7 +4,6 @@ import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.AccessibilityServiceInfo;
 import android.accessibilityservice.GestureDescription;
 import android.content.Context;
-import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Path;
 import android.graphics.Rect;
@@ -72,18 +71,6 @@ public class GuardAccessibilityService extends AccessibilityService {
             Log.i(TAG, "HTTP server started on 127.0.0.1:8552");
         } catch (Exception e) {
             Log.e(TAG, "Failed to start HTTP server", e);
-        }
-
-        // Start keep-alive service (wrapped separately to prevent crash)
-        try {
-            Intent keepAlive = new Intent(this, KeepAliveService.class);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(keepAlive);
-            } else {
-                startService(keepAlive);
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to start KeepAliveService", e);
         }
     }
 

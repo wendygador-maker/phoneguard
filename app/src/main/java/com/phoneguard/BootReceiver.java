@@ -3,7 +3,6 @@ package com.phoneguard;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.os.Build;
 import android.util.Log;
 
 public class BootReceiver extends BroadcastReceiver {
@@ -15,11 +14,14 @@ public class BootReceiver extends BroadcastReceiver {
         String action = intent.getAction();
         Log.i(TAG, "Boot receiver triggered: " + action);
 
-        Intent serviceIntent = new Intent(context, KeepAliveService.class);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.startForegroundService(serviceIntent);
-        } else {
-            context.startService(serviceIntent);
+        // Launch MainActivity to initialize the app process,
+        // the system will then rebind the accessibility service automatically
+        try {
+            Intent launchIntent = new Intent(context, MainActivity.class);
+            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            context.startActivity(launchIntent);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to launch MainActivity on boot", e);
         }
     }
 }

@@ -71,6 +71,23 @@ public class SettingsActivity extends AppCompatActivity {
 
         // Save button
         findViewById(R.id.btn_save).setOnClickListener(v -> save());
+
+        // Agent prompt
+        EditText etAgentPrompt = findViewById(R.id.et_agent_prompt);
+        etAgentPrompt.setText(configManager.getAgentSystemPrompt());
+
+        findViewById(R.id.btn_reset_prompt).setOnClickListener(v -> {
+            etAgentPrompt.setText(configManager.getDefaultAgentPrompt());
+            Toast.makeText(this, "已恢复默认提示词", Toast.LENGTH_SHORT).show();
+        });
+
+        findViewById(R.id.btn_save_prompt).setOnClickListener(v -> {
+            String prompt = etAgentPrompt.getText().toString().trim();
+            if (!prompt.isEmpty()) {
+                configManager.saveAgentSystemPrompt(prompt);
+                Toast.makeText(this, "提示词已保存", Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     private void addPlannerRow(ModelConfigManager.ModelConfig config) {

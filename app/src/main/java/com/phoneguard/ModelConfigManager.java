@@ -20,6 +20,27 @@ public class ModelConfigManager {
     private static final String KEY_PHONE_KEY = "phone_model_key";
     private static final String KEY_PHONE_MODEL = "phone_model_name";
     private static final String KEY_PLANNER_MODELS = "planner_models";
+    private static final String KEY_AGENT_PROMPT = "agent_system_prompt";
+
+    private static final String DEFAULT_AGENT_PROMPT =
+            "你是一个手机自动化任务的规划者和监督者（Agent）。\n\n"
+            + "你的职责：\n"
+            + "1. 分析用户任务，制定详细的执行策略\n"
+            + "2. 给手机模型写详细的操作指令（像教一个会用手机但知识有限的人）\n"
+            + "3. 分析手机模型返回的结果和截图，提取关键信息\n"
+            + "4. 判断任务是否完成，决定是否需要下一轮操作\n"
+            + "5. 在手机模型遇到困难时提供更具体的指引\n\n"
+            + "关于手机模型的能力：\n"
+            + "- 它能看屏幕截图，能点击、滑动、输入文字、启动应用\n"
+            + "- 它有 Note 动作，可以标记关键页面（会触发截图保存给你分析）\n"
+            + "- 它有上下文记忆，能记住之前的操作\n"
+            + "- 但它知识有限，不了解特定手机系统的限制\n"
+            + "- 它不擅长深度分析（比如计算实际到手价）\n\n"
+            + "输出格式要求：\n"
+            + "- 规划阶段：先分析策略，然后输出JSON（用```json包裹）\n"
+            + "- 分析阶段：分析结果，如果需要继续则用【下一轮指令】标记下一轮指令\n"
+            + "- 完成阶段：用【最终结论】标记最终结果\n"
+            + "- 用中文回答\n";
 
     public static class ModelConfig {
         public String url;
@@ -130,6 +151,20 @@ public class ModelConfigManager {
         return phoneOk && plannerOk;
     }
 
+    // --- Agent system prompt (editable) ---
+
+    public String getAgentSystemPrompt() {
+        return prefs.getString(KEY_AGENT_PROMPT, DEFAULT_AGENT_PROMPT);
+    }
+
+    public void saveAgentSystemPrompt(String prompt) {
+        prefs.edit().putString(KEY_AGENT_PROMPT, prompt).apply();
+    }
+
+    public String getDefaultAgentPrompt() {
+        return DEFAULT_AGENT_PROMPT;
+    }
+
     /** Return full config as JSON (with masked keys) for the /config API. */
     public JSONObject toJsonMasked() {
         JSONObject result = new JSONObject();
@@ -141,6 +176,7 @@ public class ModelConfigManager {
             }
             result.put("planner_models", planners);
             result.put("configured", isConfigured());
+            result.put("agent_prompt_length", getAgentSystemPrompt().length());
         } catch (Exception e) {
             // ignore
         }

@@ -103,6 +103,13 @@ public class HttpServer extends NanoHTTPD {
                         resp = handlePostConfig(session);
                     }
                     break;
+                case "/prompt":
+                    if (method == Method.GET) {
+                        resp = handleGetPrompt(session);
+                    } else {
+                        resp = handlePostPrompt(session);
+                    }
+                    break;
                 case "/models":
                     resp = handleModels(session);
                     break;
@@ -377,6 +384,39 @@ public class HttpServer extends NanoHTTPD {
         ModelConfigManager mgr = new ModelConfigManager(svc);
         return newFixedLengthResponse(Response.Status.OK,
                 "application/json", mgr.toJsonMasked().toString());
+    }
+
+    private Response handleGetPrompt(IHTTPSession session) {
+        GuardAccessibilityService svc = GuardAccessibilityService.getInstance();
+        if (svc == null) return serviceUnavailable();
+
+        ModelConfigManager mgr = new ModelConfigManager(svc);
+        try {
+            JSONObject result = new JSONObject();
+            result.put("prompt", mgr.getAgentSystemPrompt());
+            result.put("length", mgr.getAgentSystemPrompt().length());
+            return newFixedLengthResponse(Response.Status.OK,
+                    "application/json", result.toString());
+        } catch (Exception e) {
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR,
+                    "application/json", "{\"error\":\"" + e.getMessage() + "\"}");
+        }
+    }
+
+    private Response handlePostPrompt(IHTTPSession session) throws Exception {
+        GuardAccessibilityService svc = GuardAccessibilityService.getInstance();
+        if (svc == null) return serviceUnavailable();
+
+        JSONObject body = parseBody(session);
+        String prompt = body.optString("prompt", "");
+        if (prompt.isEmpty()) {
+            return newFixedLengthResponse(Response.Status.BAD_REQUEST,
+                    "application/json", "{\"error\":\"Missing prompt field\"}");
+        }
+
+        ModelConfigManager mgr = new ModelConfigManager(svc);
+        mgr.saveAgentSystemPrompt(prompt);
+        return jsonResponse(true);
     }
 
     private Response handlePostConfig(IHTTPSession session) throws Exception {

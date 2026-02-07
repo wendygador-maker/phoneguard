@@ -10,11 +10,13 @@ import static android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_PO
 import android.content.Intent;
 import android.util.Log;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import fi.iki.elonen.NanoHTTPD;
@@ -23,6 +25,7 @@ public class HttpServer extends NanoHTTPD {
 
     private static final String TAG = "PhoneGuard";
     private final String token;
+    private AgentEngine activeAgent = null;
 
     public HttpServer(int port, String token) {
         super("127.0.0.1", port);
@@ -93,9 +96,31 @@ public class HttpServer extends NanoHTTPD {
                 case "/scroll":
                     resp = handleScroll(session);
                     break;
+                case "/config":
+                    if (method == Method.GET) {
+                        resp = handleGetConfig(session);
+                    } else {
+                        resp = handlePostConfig(session);
+                    }
+                    break;
+                case "/models":
+                    resp = handleModels(session);
+                    break;
+                case "/task":
+                    resp = handlePostTask(session);
+                    break;
                 default:
-                    resp = newFixedLengthResponse(Response.Status.NOT_FOUND,
-                            "application/json", "{\"error\":\"Not found\"}");
+                    // Check for /task/{id} and /task/{id}/cancel
+                    if (uri.startsWith("/task/")) {
+                        if (uri.endsWith("/cancel")) {
+                            resp = handleCancelTask(session, uri);
+                        } else {
+                            resp = handleGetTask(session, uri);
+                        }
+                    } else {
+                        resp = newFixedLengthResponse(Response.Status.NOT_FOUND,
+                                "application/json", "{\"error\":\"Not found\"}");
+                    }
             }
         } catch (Exception e) {
             Log.e(TAG, "Error handling " + uri, e);
@@ -341,6 +366,143 @@ public class HttpServer extends NanoHTTPD {
 
         boolean ok = svc.performSwipe(x1, y1, x2, y2, 300);
         return jsonResponse(ok);
+    }
+
+    // --- Config endpoints ---
+
+    private Response handleGetConfig(IHTTPSession session) {
+        GuardAccessibilityService svc = GuardAccessibilityService.getInstance();
+        if (svc == null) return serviceUnavailable();
+
+        ModelConfigManager mgr = new ModelConfigManager(svc);
+        return newFixedLengthResponse(Response.Status.OK,
+                "application/json", mgr.toJsonMasked().toString());
+    }
+
+    private Response handlePostConfig(IHTTPSession session) throws Exception {
+        GuardAccessibilityService svc = GuardAccessibilityService.getInstance();
+        if (svc == null) return serviceUnavailable();
+
+        JSONObject body = parseBody(session);
+        ModelConfigManager mgr = new ModelConfigManager(svc);
+
+        if (body.has("phone_model")) {
+            JSONObject pm = body.getJSONObject("phone_model");
+            mgr.savePhoneModel(ModelConfigManager.ModelConfig.fromJson(pm));
+        }
+        if (body.has("planner_models")) {
+            JSONArray arr = body.getJSONArray("planner_models");
+            java.util.List<ModelConfigManager.ModelConfig> planners = new java.util.ArrayList<>();
+            for (int i = 0; i < arr.length(); i++) {
+                planners.add(ModelConfigManager.ModelConfig.fromJson(arr.getJSONObject(i)));
+            }
+            mgr.savePlannerModels(planners);
+        }
+
+        return jsonResponse(true);
+    }
+
+    private Response handleModels(IHTTPSession session) {
+        Map<String, String> params = session.getParms();
+        String url = params.get("url");
+        String key = params.get("key");
+
+        if (url == null || key == null) {
+            return newFixedLengthResponse(Response.Status.BAD_REQUEST,
+                    "application/json", "{\"error\":\"Missing url or key parameter\"}");
+        }
+
+        try {
+            List<String> models = ModelClient.fetchModels(url, key);
+            JSONArray arr = new JSONArray();
+            for (String m : models) {
+                arr.put(m);
+            }
+            return newFixedLengthResponse(Response.Status.OK,
+                    "application/json", arr.toString());
+        } catch (Exception e) {
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR,
+                    "application/json", "{\"error\":\"" + e.getMessage() + "\"}");
+        }
+    }
+
+    // --- Task endpoints ---
+
+    private Response handlePostTask(IHTTPSession session) throws Exception {
+        JSONObject body = parseBody(session);
+        String task = body.getString("task");
+
+        GuardAccessibilityService svc = GuardAccessibilityService.getInstance();
+        if (svc == null) return serviceUnavailable();
+
+        // Only one task at a time
+        if (activeAgent != null) {
+            return newFixedLengthResponse(Response.Status.BAD_REQUEST,
+                    "application/json", "{\"error\":\"A task is already running\"}");
+        }
+
+        ModelConfigManager mgr = new ModelConfigManager(svc);
+        if (!mgr.isConfigured()) {
+            return newFixedLengthResponse(Response.Status.BAD_REQUEST,
+                    "application/json", "{\"error\":\"Models not configured. Open Settings first.\"}");
+        }
+
+        AgentEngine engine = new AgentEngine(svc, mgr);
+        activeAgent = engine;
+
+        // Run in background thread
+        new Thread(() -> {
+            try {
+                AgentEngine.TaskState result = engine.executeTask(task);
+                Log.i(TAG, "Task " + result.taskId + " finished: " + result.status);
+            } catch (Exception e) {
+                Log.e(TAG, "Task execution error", e);
+            } finally {
+                activeAgent = null;
+            }
+        }).start();
+
+        // Wait briefly for task ID to be created
+        try { Thread.sleep(200); } catch (Exception ignored) {}
+
+        // Find the latest task
+        // The engine creates the task synchronously before starting the loop
+        JSONObject resp = new JSONObject();
+        resp.put("status", "running");
+        resp.put("task", task);
+        return newFixedLengthResponse(Response.Status.OK,
+                "application/json", resp.toString());
+    }
+
+    private Response handleGetTask(IHTTPSession session, String uri) {
+        // Extract task ID from /task/{id}
+        String taskId = uri.substring("/task/".length());
+        AgentEngine.TaskState state = AgentEngine.getTask(taskId);
+
+        if (state == null) {
+            return newFixedLengthResponse(Response.Status.NOT_FOUND,
+                    "application/json", "{\"error\":\"Task not found: " + taskId + "\"}");
+        }
+
+        return newFixedLengthResponse(Response.Status.OK,
+                "application/json", state.toJson().toString());
+    }
+
+    private Response handleCancelTask(IHTTPSession session, String uri) {
+        // Extract task ID from /task/{id}/cancel
+        String taskId = uri.substring("/task/".length(), uri.length() - "/cancel".length());
+        AgentEngine.TaskState state = AgentEngine.getTask(taskId);
+
+        if (state == null) {
+            return newFixedLengthResponse(Response.Status.NOT_FOUND,
+                    "application/json", "{\"error\":\"Task not found: " + taskId + "\"}");
+        }
+
+        if (activeAgent != null) {
+            activeAgent.cancel();
+        }
+
+        return jsonResponse(true);
     }
 
     // --- Helpers ---

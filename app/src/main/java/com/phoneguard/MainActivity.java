@@ -22,6 +22,7 @@ public class MainActivity extends Activity {
     private TextView tvScreenCapture;
     private TextView tvHttpServer;
     private TextView tvToken;
+    private TextView tvModelConfig;
     private Handler refreshHandler;
     private Runnable refreshRunnable;
 
@@ -34,16 +35,21 @@ public class MainActivity extends Activity {
         tvScreenCapture = findViewById(R.id.tv_screen_capture);
         tvHttpServer = findViewById(R.id.tv_http_server);
         tvToken = findViewById(R.id.tv_token);
+        tvModelConfig = findViewById(R.id.tv_model_config);
 
         Button btnAccessibility = findViewById(R.id.btn_accessibility);
         Button btnBattery = findViewById(R.id.btn_battery);
         Button btnAutoStart = findViewById(R.id.btn_auto_start);
         Button btnCopyToken = findViewById(R.id.btn_copy_token);
+        Button btnSettings = findViewById(R.id.btn_settings);
 
         btnAccessibility.setOnClickListener(v -> openAccessibilitySettings());
         btnBattery.setOnClickListener(v -> requestBatteryOptimization());
         btnAutoStart.setOnClickListener(v -> openAutoStartSettings());
         btnCopyToken.setOnClickListener(v -> copyToken());
+        btnSettings.setOnClickListener(v -> {
+            startActivity(new Intent(this, SettingsActivity.class));
+        });
 
         // Write token file on first launch
         String token = TokenManager.getToken(this);
@@ -92,6 +98,24 @@ public class MainActivity extends Activity {
 
         String token = TokenManager.getToken(this);
         tvToken.setText("Token: " + token.substring(0, 8) + "...");
+
+        // Model config status
+        ModelConfigManager configManager = new ModelConfigManager(this);
+        ModelConfigManager.ModelConfig phone = configManager.getPhoneModel();
+        int plannerCount = configManager.getPlannerModels().size();
+        StringBuilder modelStatus = new StringBuilder();
+        if (!phone.model.isEmpty()) {
+            modelStatus.append("手机模型: ").append(phone.model).append(" ✓");
+        } else {
+            modelStatus.append("手机模型: 未配置 ✗");
+        }
+        modelStatus.append("  |  ");
+        if (plannerCount > 0) {
+            modelStatus.append("规划模型: ").append(plannerCount).append(" 个已配置 ✓");
+        } else {
+            modelStatus.append("规划模型: 未配置 ✗");
+        }
+        tvModelConfig.setText(modelStatus.toString());
     }
 
     private void openAccessibilitySettings() {

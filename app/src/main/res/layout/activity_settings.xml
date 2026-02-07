@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F5F5F5">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <!-- Title -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="模型配置"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="#333333"
+            android:gravity="center"
+            android:layout_marginBottom="24dp" />
+
+        <!-- Phone Model Card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#FFFFFF"
+            android:padding="16dp"
+            android:layout_marginBottom="16dp"
+            android:elevation="2dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="手机模型 (屏幕操作)"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#333333"
+                android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="API URL"
+                android:textSize="12sp"
+                android:textColor="#888888"
+                android:layout_marginBottom="4dp" />
+
+            <EditText
+                android:id="@+id/et_phone_url"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:hint="https://open.bigmodel.cn/api/paas/v4"
+                android:textSize="14sp"
+                android:inputType="textUri"
+                android:singleLine="true"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="API Key"
+                android:textSize="12sp"
+                android:textColor="#888888"
+                android:layout_marginBottom="4dp" />
+
+            <EditText
+                android:id="@+id/et_phone_key"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:hint="API Key"
+                android:textSize="14sp"
+                android:inputType="textPassword"
+                android:singleLine="true"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="模型名称"
+                android:textSize="12sp"
+                android:textColor="#888888"
+                android:layout_marginBottom="4dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <EditText
+                    android:id="@+id/et_phone_model"
+                    android:layout_width="0dp"
+                    android:layout_height="44dp"
+                    android:layout_weight="1"
+                    android:hint="autoglm-phone"
+                    android:textSize="14sp"
+                    android:singleLine="true" />
+
+                <Button
+                    android:id="@+id/btn_phone_fetch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="44dp"
+                    android:text="获取列表"
+                    android:textSize="12sp"
+                    android:layout_marginStart="8dp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Planner Models Card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#FFFFFF"
+            android:padding="16dp"
+            android:layout_marginBottom="16dp"
+            android:elevation="2dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="规划模型 (任务拆解，按优先级排列)"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#333333"
+                android:layout_marginBottom="12dp" />
+
+            <LinearLayout
+                android:id="@+id/planner_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+            <Button
+                android:id="@+id/btn_add_planner"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:text="+ 添加备选模型"
+                android:textSize="14sp"
+                android:layout_marginTop="8dp" />
+        </LinearLayout>
+
+        <!-- Save Button -->
+        <Button
+            android:id="@+id/btn_save"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:text="保存"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="16dp" />
+
+    </LinearLayout>
+</ScrollView>

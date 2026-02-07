@@ -29,6 +29,11 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".SettingsActivity"
+            android:exported="false"
+            android:launchMode="singleTop" />
+
         <service
             android:name=".GuardAccessibilityService"
             android:exported="true"

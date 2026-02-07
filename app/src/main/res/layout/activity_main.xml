@@ -79,6 +79,15 @@
                 android:layout_height="wrap_content"
                 android:text="Token: ..."
                 android:textSize="13sp"
+                android:textColor="#666666"
+                android:layout_marginBottom="8dp" />
+
+            <TextView
+                android:id="@+id/tv_model_config"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="模型: 未配置"
+                android:textSize="13sp"
                 android:textColor="#666666" />
 
         </LinearLayout>
@@ -131,6 +140,14 @@
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
                 android:text="复制 Token"
+                android:textSize="14sp"
+                android:layout_marginBottom="8dp" />
+
+            <Button
+                android:id="@+id/btn_settings"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="模型配置"
                 android:textSize="14sp" />
 
         </LinearLayout>

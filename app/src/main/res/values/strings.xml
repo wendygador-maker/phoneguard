@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PhoneGuard</string>
+    <string name="accessibility_description">PhoneGuard 无障碍服务，提供屏幕控制能力（截图、点击、滑动、输入）。仅通过本地 HTTP 接口接受指令，不会上传任何数据。</string>
+    <string name="channel_name">PhoneGuard 服务</string>
+    <string name="channel_description">保持 PhoneGuard 后台运行</string>
+</resources>

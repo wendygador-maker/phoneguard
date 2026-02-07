@@ -1,0 +1,253 @@
+package com.phoneguard;
+
+import android.accessibilityservice.AccessibilityService;
+import android.accessibilityservice.GestureDescription;
+import android.content.Intent;
+import android.graphics.Path;
+import android.graphics.Rect;
+import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Log;
+import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityNodeInfo;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+public class GuardAccessibilityService extends AccessibilityService {
+
+    private static final String TAG = "PhoneGuard";
+    private static GuardAccessibilityService instance;
+    private HttpServer httpServer;
+    private Handler mainHandler;
+
+    public static GuardAccessibilityService getInstance() {
+        return instance;
+    }
+
+    public static boolean isRunning() {
+        return instance != null;
+    }
+
+    @Override
+    public void onServiceConnected() {
+        super.onServiceConnected();
+        instance = this;
+        mainHandler = new Handler(Looper.getMainLooper());
+        Log.i(TAG, "Accessibility service connected");
+
+        // Start HTTP server
+        try {
+            String token = TokenManager.getToken(this);
+            httpServer = new HttpServer(8552, token);
+            httpServer.start();
+            Log.i(TAG, "HTTP server started on 127.0.0.1:8552");
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to start HTTP server", e);
+        }
+
+        // Start keep-alive service
+        Intent keepAlive = new Intent(this, KeepAliveService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(keepAlive);
+        } else {
+            startService(keepAlive);
+        }
+    }
+
+    @Override
+    public void onAccessibilityEvent(AccessibilityEvent event) {
+        // We don't need to process events, just need the service running
+    }
+
+    @Override
+    public void onInterrupt() {
+        Log.w(TAG, "Accessibility service interrupted");
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        instance = null;
+        if (httpServer != null) {
+            httpServer.stop();
+        }
+        Log.i(TAG, "Accessibility service destroyed");
+    }
+
+    // --- Click at coordinates ---
+    public boolean performClick(float x, float y) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return false;
+
+        Path path = new Path();
+        path.moveTo(x, y);
+
+        GestureDescription.StrokeDescription stroke =
+                new GestureDescription.StrokeDescription(path, 0, 100);
+        GestureDescription gesture = new GestureDescription.Builder()
+                .addStroke(stroke)
+                .build();
+
+        return dispatchGestureSync(gesture);
+    }
+
+    // --- Long press at coordinates ---
+    public boolean performLongPress(float x, float y) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return false;
+
+        Path path = new Path();
+        path.moveTo(x, y);
+
+        GestureDescription.StrokeDescription stroke =
+                new GestureDescription.StrokeDescription(path, 0, 1000);
+        GestureDescription gesture = new GestureDescription.Builder()
+                .addStroke(stroke)
+                .build();
+
+        return dispatchGestureSync(gesture);
+    }
+
+    // --- Swipe ---
+    public boolean performSwipe(float x1, float y1, float x2, float y2, long duration) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return false;
+
+        Path path = new Path();
+        path.moveTo(x1, y1);
+        path.lineTo(x2, y2);
+
+        GestureDescription.StrokeDescription stroke =
+                new GestureDescription.StrokeDescription(path, 0, duration);
+        GestureDescription gesture = new GestureDescription.Builder()
+                .addStroke(stroke)
+                .build();
+
+        return dispatchGestureSync(gesture);
+    }
+
+    // --- Input text into focused field ---
+    public boolean performInput(String text) {
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root == null) return false;
+
+        AccessibilityNodeInfo focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+        if (focused != null) {
+            android.os.Bundle args = new android.os.Bundle();
+            args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text);
+            boolean result = focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args);
+            focused.recycle();
+            root.recycle();
+            return result;
+        }
+        root.recycle();
+        return false;
+    }
+
+    // --- Tap on text ---
+    public boolean performTapText(String text) {
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root == null) return false;
+
+        java.util.List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText(text);
+        if (nodes != null && !nodes.isEmpty()) {
+            AccessibilityNodeInfo node = nodes.get(0);
+            Rect bounds = new Rect();
+            node.getBoundsInScreen(bounds);
+            float cx = bounds.centerX();
+            float cy = bounds.centerY();
+            node.recycle();
+            root.recycle();
+            return performClick(cx, cy);
+        }
+        root.recycle();
+        return false;
+    }
+
+    // --- Get UI node tree ---
+    public JSONArray getNodeTree() {
+        JSONArray result = new JSONArray();
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root == null) return result;
+
+        try {
+            collectNodes(root, result, 0);
+        } catch (Exception e) {
+            Log.e(TAG, "Error collecting nodes", e);
+        }
+        root.recycle();
+        return result;
+    }
+
+    private void collectNodes(AccessibilityNodeInfo node, JSONArray result, int depth) {
+        if (node == null || depth > 15) return;
+
+        try {
+            JSONObject obj = new JSONObject();
+            CharSequence text = node.getText();
+            CharSequence desc = node.getContentDescription();
+            CharSequence cls = node.getClassName();
+
+            if (text != null || desc != null || node.isClickable()) {
+                Rect bounds = new Rect();
+                node.getBoundsInScreen(bounds);
+
+                obj.put("text", text != null ? text.toString() : "");
+                obj.put("desc", desc != null ? desc.toString() : "");
+                obj.put("class", cls != null ? cls.toString() : "");
+                obj.put("clickable", node.isClickable());
+                obj.put("scrollable", node.isScrollable());
+                obj.put("editable", node.isEditable());
+                obj.put("bounds", bounds.left + "," + bounds.top + "," + bounds.right + "," + bounds.bottom);
+                obj.put("cx", bounds.centerX());
+                obj.put("cy", bounds.centerY());
+                result.put(obj);
+            }
+
+            for (int i = 0; i < node.getChildCount(); i++) {
+                AccessibilityNodeInfo child = node.getChild(i);
+                if (child != null) {
+                    collectNodes(child, result, depth + 1);
+                    child.recycle();
+                }
+            }
+        } catch (Exception e) {
+            // skip
+        }
+    }
+
+    // --- Dispatch gesture synchronously ---
+    private boolean dispatchGestureSync(GestureDescription gesture) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return false;
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicBoolean success = new AtomicBoolean(false);
+
+        boolean dispatched = dispatchGesture(gesture, new GestureResultCallback() {
+            @Override
+            public void onCompleted(GestureDescription gestureDescription) {
+                success.set(true);
+                latch.countDown();
+            }
+
+            @Override
+            public void onCancelled(GestureDescription gestureDescription) {
+                success.set(false);
+                latch.countDown();
+            }
+        }, mainHandler);
+
+        if (!dispatched) return false;
+
+        try {
+            latch.await(3, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            return false;
+        }
+
+        return success.get();
+    }
+}

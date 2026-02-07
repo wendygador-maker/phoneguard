@@ -4,12 +4,16 @@ import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.AccessibilityServiceInfo;
 import android.accessibilityservice.GestureDescription;
 import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.graphics.Bitmap;
 import android.graphics.Path;
 import android.graphics.Rect;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Display;
 import android.view.accessibility.AccessibilityEvent;
@@ -20,6 +24,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -31,6 +36,8 @@ public class GuardAccessibilityService extends AccessibilityService {
     private static GuardAccessibilityService instance;
     private HttpServer httpServer;
     private Handler mainHandler;
+    private String currentPackage = "";
+    private String currentActivity = "";
 
     public static GuardAccessibilityService getInstance() {
         return instance;
@@ -76,7 +83,22 @@ public class GuardAccessibilityService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        // We don't need to process events, just need the service running
+        if (event == null) return;
+        if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            CharSequence pkg = event.getPackageName();
+            CharSequence cls = event.getClassName();
+            if (pkg != null && cls != null) {
+                String className = cls.toString();
+                // Filter out popups/dialogs — only track real Activity transitions
+                if (!className.contains("Dialog")
+                        && !className.contains("Popup")
+                        && !className.contains("Menu")
+                        && !className.startsWith("android.widget.")) {
+                    currentPackage = pkg.toString();
+                    currentActivity = className;
+                }
+            }
+        }
     }
 
     @Override
@@ -245,6 +267,114 @@ public class GuardAccessibilityService extends AccessibilityService {
         }
     }
 
+    // --- Get current foreground app info ---
+    public JSONObject getCurrentAppInfo() {
+        JSONObject result = new JSONObject();
+        try {
+            String pkg = currentPackage;
+            String act = currentActivity;
+
+            // Fallback: if no event received yet, try root window
+            if (pkg.isEmpty()) {
+                AccessibilityNodeInfo root = getRootInActiveWindow();
+                if (root != null) {
+                    CharSequence rootPkg = root.getPackageName();
+                    if (rootPkg != null) {
+                        pkg = rootPkg.toString();
+                    }
+                    root.recycle();
+                }
+            }
+
+            result.put("package", pkg);
+            result.put("activity", act);
+
+            // Resolve human-readable app name
+            if (!pkg.isEmpty()) {
+                try {
+                    PackageManager pm = getPackageManager();
+                    result.put("appName", pm.getApplicationLabel(
+                            pm.getApplicationInfo(pkg, 0)).toString());
+                } catch (PackageManager.NameNotFoundException e) {
+                    result.put("appName", pkg);
+                }
+            } else {
+                result.put("appName", "");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting current app info", e);
+        }
+        return result;
+    }
+
+    // --- Get all installed launchable apps ---
+    public JSONArray getInstalledApps() {
+        JSONArray result = new JSONArray();
+        try {
+            Intent intent = new Intent(Intent.ACTION_MAIN);
+            intent.addCategory(Intent.CATEGORY_LAUNCHER);
+            PackageManager pm = getPackageManager();
+            List<ResolveInfo> activities = pm.queryIntentActivities(intent, 0);
+            for (ResolveInfo ri : activities) {
+                JSONObject app = new JSONObject();
+                app.put("package", ri.activityInfo.packageName);
+                app.put("name", ri.loadLabel(pm).toString());
+                result.put(app);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting installed apps", e);
+        }
+        return result;
+    }
+
+    // --- Get screen size ---
+    public JSONObject getScreenSize() {
+        JSONObject result = new JSONObject();
+        try {
+            DisplayMetrics dm = getResources().getDisplayMetrics();
+            result.put("width", dm.widthPixels);
+            result.put("height", dm.heightPixels);
+            result.put("density", dm.density);
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting screen size", e);
+        }
+        return result;
+    }
+
+    // --- Find UI elements containing text ---
+    public JSONArray findTextNodes(String text) {
+        JSONArray result = new JSONArray();
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root == null) return result;
+
+        try {
+            List<AccessibilityNodeInfo> nodes = root.findAccessibilityNodeInfosByText(text);
+            if (nodes != null) {
+                for (AccessibilityNodeInfo node : nodes) {
+                    JSONObject obj = new JSONObject();
+                    Rect bounds = new Rect();
+                    node.getBoundsInScreen(bounds);
+
+                    CharSequence nodeText = node.getText();
+                    CharSequence nodeDesc = node.getContentDescription();
+
+                    obj.put("text", nodeText != null ? nodeText.toString() : "");
+                    obj.put("desc", nodeDesc != null ? nodeDesc.toString() : "");
+                    obj.put("bounds", bounds.left + "," + bounds.top + "," + bounds.right + "," + bounds.bottom);
+                    obj.put("cx", bounds.centerX());
+                    obj.put("cy", bounds.centerY());
+                    obj.put("clickable", node.isClickable());
+                    result.put(obj);
+                    node.recycle();
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error finding text nodes", e);
+        }
+        root.recycle();
+        return result;
+    }
+
     // --- Get UI node tree ---
     public JSONArray getNodeTree() {
         JSONArray result = new JSONArray();
@@ -273,6 +403,8 @@ public class GuardAccessibilityService extends AccessibilityService {
                 Rect bounds = new Rect();
                 node.getBoundsInScreen(bounds);
 
+                CharSequence pkg = node.getPackageName();
+                obj.put("package", pkg != null ? pkg.toString() : "");
                 obj.put("text", text != null ? text.toString() : "");
                 obj.put("desc", desc != null ? desc.toString() : "");
                 obj.put("class", cls != null ? cls.toString() : "");

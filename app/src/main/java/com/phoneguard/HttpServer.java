@@ -78,6 +78,21 @@ public class HttpServer extends NanoHTTPD {
                 case "/node-info":
                     resp = handleNodeInfo(session);
                     break;
+                case "/current-app":
+                    resp = handleCurrentApp(session);
+                    break;
+                case "/apps":
+                    resp = handleApps(session);
+                    break;
+                case "/screen-size":
+                    resp = handleScreenSize(session);
+                    break;
+                case "/find-text":
+                    resp = handleFindText(session);
+                    break;
+                case "/scroll":
+                    resp = handleScroll(session);
+                    break;
                 default:
                     resp = newFixedLengthResponse(Response.Status.NOT_FOUND,
                             "application/json", "{\"error\":\"Not found\"}");
@@ -248,6 +263,84 @@ public class HttpServer extends NanoHTTPD {
 
         return newFixedLengthResponse(Response.Status.OK,
                 "application/json", svc.getNodeTree().toString());
+    }
+
+    private Response handleCurrentApp(IHTTPSession session) {
+        GuardAccessibilityService svc = GuardAccessibilityService.getInstance();
+        if (svc == null) return serviceUnavailable();
+
+        return newFixedLengthResponse(Response.Status.OK,
+                "application/json", svc.getCurrentAppInfo().toString());
+    }
+
+    private Response handleApps(IHTTPSession session) {
+        GuardAccessibilityService svc = GuardAccessibilityService.getInstance();
+        if (svc == null) return serviceUnavailable();
+
+        return newFixedLengthResponse(Response.Status.OK,
+                "application/json", svc.getInstalledApps().toString());
+    }
+
+    private Response handleScreenSize(IHTTPSession session) {
+        GuardAccessibilityService svc = GuardAccessibilityService.getInstance();
+        if (svc == null) return serviceUnavailable();
+
+        return newFixedLengthResponse(Response.Status.OK,
+                "application/json", svc.getScreenSize().toString());
+    }
+
+    private Response handleFindText(IHTTPSession session) throws Exception {
+        JSONObject body = parseBody(session);
+        String text = body.getString("text");
+
+        GuardAccessibilityService svc = GuardAccessibilityService.getInstance();
+        if (svc == null) return serviceUnavailable();
+
+        return newFixedLengthResponse(Response.Status.OK,
+                "application/json", svc.findTextNodes(text).toString());
+    }
+
+    private Response handleScroll(IHTTPSession session) throws Exception {
+        JSONObject body = parseBody(session);
+        String direction = body.getString("direction");
+
+        GuardAccessibilityService svc = GuardAccessibilityService.getInstance();
+        if (svc == null) return serviceUnavailable();
+
+        // Get screen dimensions for calculating scroll coordinates
+        JSONObject screenSize = svc.getScreenSize();
+        int w = screenSize.getInt("width");
+        int h = screenSize.getInt("height");
+        int distance = body.optInt("distance", h / 3);
+
+        int cx = w / 2;
+        int cy = h / 2;
+        float x1, y1, x2, y2;
+
+        switch (direction.toLowerCase()) {
+            case "down":
+                x1 = cx; y1 = cy + distance / 2f;
+                x2 = cx; y2 = cy - distance / 2f;
+                break;
+            case "up":
+                x1 = cx; y1 = cy - distance / 2f;
+                x2 = cx; y2 = cy + distance / 2f;
+                break;
+            case "left":
+                x1 = cx - distance / 2f; y1 = cy;
+                x2 = cx + distance / 2f; y2 = cy;
+                break;
+            case "right":
+                x1 = cx + distance / 2f; y1 = cy;
+                x2 = cx - distance / 2f; y2 = cy;
+                break;
+            default:
+                return newFixedLengthResponse(Response.Status.BAD_REQUEST,
+                        "application/json", "{\"error\":\"Unknown direction: " + direction + "\"}");
+        }
+
+        boolean ok = svc.performSwipe(x1, y1, x2, y2, 300);
+        return jsonResponse(ok);
     }
 
     // --- Helpers ---

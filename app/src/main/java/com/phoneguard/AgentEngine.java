@@ -353,6 +353,7 @@ public class AgentEngine {
             fw.write("#!/data/data/com.termux/files/usr/bin/bash\n");
             fw.write("export PHONEGUARD_SCREENSHOT_DIR=\"" + screenshotDir + "\"\n");
             fw.write("export PHONEGUARD_TOKEN=\"" + TokenManager.getToken(svc) + "\"\n");
+            fw.write("export PHONEGUARD_SCREENSHOT_INTERVAL=\"5\"\n");
             fw.write("cd /data/data/com.termux/files/home/Code/1/Open-AutoGLM\n");
             fw.write("python main.py");
             fw.write(" --base-url \"" + phoneConfig.url + "\"");
@@ -396,7 +397,7 @@ public class AgentEngine {
             // Extract finish message
             result.finishMessage = extractFinishMessage(fullOutput);
 
-            // Collect Note screenshots
+            // Collect auto-screenshots from during execution
             if (ssDir.exists() && ssDir.listFiles() != null) {
                 java.io.File[] files = ssDir.listFiles();
                 java.util.Arrays.sort(files);
@@ -408,7 +409,19 @@ public class AgentEngine {
                 }
             }
 
-            Log.i(TAG, "Collected " + result.screenshots.size() + " Note screenshots");
+            // Always take a final screenshot after AutoGLM finishes
+            // This guarantees the Agent sees the end state even if no auto-screenshots were saved
+            try {
+                byte[] finalScreenshot = svc.takeScreenshot(80, 0.5f);
+                if (finalScreenshot != null && finalScreenshot.length > 0) {
+                    result.screenshots.add(Base64.encodeToString(finalScreenshot, Base64.NO_WRAP));
+                    Log.i(TAG, "Added final screenshot after phone model finished");
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Failed to take final screenshot: " + e.getMessage());
+            }
+
+            Log.i(TAG, "Collected " + result.screenshots.size() + " screenshots total");
 
         } catch (Exception e) {
             Log.e(TAG, "Phone model call error", e);

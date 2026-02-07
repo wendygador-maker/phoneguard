@@ -74,12 +74,16 @@ public class GuardAccessibilityService extends AccessibilityService {
             Log.e(TAG, "Failed to start HTTP server", e);
         }
 
-        // Start keep-alive service
-        Intent keepAlive = new Intent(this, KeepAliveService.class);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(keepAlive);
-        } else {
-            startService(keepAlive);
+        // Start keep-alive service (wrapped separately to prevent crash)
+        try {
+            Intent keepAlive = new Intent(this, KeepAliveService.class);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(keepAlive);
+            } else {
+                startService(keepAlive);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to start KeepAliveService", e);
         }
     }
 

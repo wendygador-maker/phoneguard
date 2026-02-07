@@ -1,9 +1,13 @@
 package com.phoneguard;
 
+import static android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK;
+import static android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME;
+import static android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_RECENTS;
+import static android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS;
+import static android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_QUICK_SETTINGS;
+import static android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_POWER_DIALOG;
+
 import android.content.Intent;
-import android.content.ComponentName;
-import android.net.Uri;
-import android.provider.Settings;
 import android.util.Log;
 
 import org.json.JSONObject;

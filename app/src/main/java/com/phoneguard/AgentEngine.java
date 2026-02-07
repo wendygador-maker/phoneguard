@@ -112,6 +112,18 @@ public class AgentEngine {
         return tasks.get(taskId);
     }
 
+    public static JSONArray getAllTasks() {
+        JSONArray arr = new JSONArray();
+        for (TaskState s : tasks.values()) {
+            arr.put(s.toJson());
+        }
+        return arr;
+    }
+
+    public static java.util.List<String> getAllTaskIds() {
+        return new java.util.ArrayList<>(tasks.keySet());
+    }
+
     // --- Main entry point ---
 
     public TaskState executeTask(String task) {

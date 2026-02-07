@@ -116,6 +116,9 @@ public class HttpServer extends NanoHTTPD {
                 case "/task":
                     resp = handlePostTask(session);
                     break;
+                case "/tasks":
+                    resp = handleGetAllTasks(session);
+                    break;
                 default:
                     // Check for /task/{id} and /task/{id}/cancel
                     if (uri.startsWith("/task/")) {
@@ -503,13 +506,23 @@ public class HttpServer extends NanoHTTPD {
         }).start();
 
         // Wait briefly for task ID to be created
-        try { Thread.sleep(200); } catch (Exception ignored) {}
+        try { Thread.sleep(500); } catch (Exception ignored) {}
 
-        // Find the latest task
-        // The engine creates the task synchronously before starting the loop
+        // Find the latest task — engine creates it synchronously
         JSONObject resp = new JSONObject();
         resp.put("status", "running");
         resp.put("task", task);
+        // Get task_id from the engine's task map
+        AgentEngine.TaskState latestTask = null;
+        for (String key : new java.util.ArrayList<>(AgentEngine.getAllTaskIds())) {
+            AgentEngine.TaskState ts = AgentEngine.getTask(key);
+            if (ts != null && ts.task != null && ts.task.equals(task)) {
+                latestTask = ts;
+            }
+        }
+        if (latestTask != null) {
+            resp.put("task_id", latestTask.taskId);
+        }
         return newFixedLengthResponse(Response.Status.OK,
                 "application/json", resp.toString());
     }
@@ -526,6 +539,11 @@ public class HttpServer extends NanoHTTPD {
 
         return newFixedLengthResponse(Response.Status.OK,
                 "application/json", state.toJson().toString());
+    }
+
+    private Response handleGetAllTasks(IHTTPSession session) {
+        return newFixedLengthResponse(Response.Status.OK,
+                "application/json", AgentEngine.getAllTasks().toString());
     }
 
     private Response handleCancelTask(IHTTPSession session, String uri) {

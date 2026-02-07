@@ -1,7 +1,9 @@
 package com.phoneguard;
 
 import android.accessibilityservice.AccessibilityService;
+import android.accessibilityservice.AccessibilityServiceInfo;
 import android.accessibilityservice.GestureDescription;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Path;
@@ -12,6 +14,7 @@ import android.os.Looper;
 import android.util.Log;
 import android.view.Display;
 import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityManager;
 import android.view.accessibility.AccessibilityNodeInfo;
 
 import org.json.JSONArray;
@@ -36,6 +39,22 @@ public class GuardAccessibilityService extends AccessibilityService {
 
     public static boolean isRunning() {
         return instance != null;
+    }
+
+    /**
+     * Check if the service is enabled in system accessibility settings,
+     * regardless of whether the instance is alive in this process.
+     */
+    public static boolean isEnabledInSettings(Context context) {
+        AccessibilityManager am = (AccessibilityManager) context.getSystemService(Context.ACCESSIBILITY_SERVICE);
+        if (am == null) return false;
+        for (AccessibilityServiceInfo info : am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)) {
+            String id = info.getId();
+            if (id != null && id.contains("com.phoneguard")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

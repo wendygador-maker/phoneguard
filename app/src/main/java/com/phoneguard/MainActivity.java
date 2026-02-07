@@ -8,6 +8,8 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.provider.Settings;
 import android.widget.Button;
@@ -20,6 +22,8 @@ public class MainActivity extends Activity {
     private TextView tvScreenCapture;
     private TextView tvHttpServer;
     private TextView tvToken;
+    private Handler refreshHandler;
+    private Runnable refreshRunnable;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -50,14 +54,39 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         updateStatus();
+        // Auto-refresh every 2 seconds while activity is visible
+        refreshHandler = new Handler(Looper.getMainLooper());
+        refreshRunnable = () -> {
+            updateStatus();
+            if (refreshHandler != null) {
+                refreshHandler.postDelayed(refreshRunnable, 2000);
+            }
+        };
+        refreshHandler.postDelayed(refreshRunnable, 2000);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (refreshHandler != null) {
+            refreshHandler.removeCallbacksAndMessages(null);
+            refreshHandler = null;
+        }
     }
 
     private void updateStatus() {
-        boolean accOk = GuardAccessibilityService.isRunning();
-        boolean capOk = accOk && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R;
-        boolean httpOk = accOk; // HTTP server starts with accessibility service
+        boolean instanceAlive = GuardAccessibilityService.isRunning();
+        boolean enabledInSettings = GuardAccessibilityService.isEnabledInSettings(this);
+        boolean capOk = instanceAlive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R;
+        boolean httpOk = instanceAlive;
 
-        tvAccessibility.setText(accOk ? "✅ 无障碍服务已开启" : "❌ 无障碍服务未开启");
+        if (instanceAlive) {
+            tvAccessibility.setText("✅ 无障碍服务已开启");
+        } else if (enabledInSettings) {
+            tvAccessibility.setText("⏳ 无障碍已授权，服务正在连接...");
+        } else {
+            tvAccessibility.setText("❌ 无障碍服务未开启");
+        }
         tvScreenCapture.setText(capOk ? "✅ 截图功能可用 (Android 11+)" : "❌ 截图功能不可用");
         tvHttpServer.setText(httpOk ? "✅ HTTP 服务运行中 (127.0.0.1:8552)" : "❌ HTTP 服务未运行");
 

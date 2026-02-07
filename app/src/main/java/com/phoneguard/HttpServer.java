@@ -97,6 +97,7 @@ public class HttpServer extends NanoHTTPD {
             json.put("ok", true);
             json.put("accessibility", GuardAccessibilityService.isRunning());
             json.put("screenshot", GuardAccessibilityService.isRunning() && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R);
+            json.put("token", token);
             return newFixedLengthResponse(Response.Status.OK,
                     "application/json", json.toString());
         } catch (Exception e) {
